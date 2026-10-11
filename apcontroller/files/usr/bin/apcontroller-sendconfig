@@ -55,7 +55,14 @@ for WIFI in $WIFIS; do
 		json_add_string "band" "$BAND"
 		json_add_string "ssid" "$(uci -q get apcontroller."$WIFI".ssid)"
 		SOURCE_SECTION=$(uci -q get apcontroller."$WIFI".source_section)
-		[ -n "$SOURCE_SECTION" ] && json_add_string "source_section" "$SOURCE_SECTION"
+		if [ -n "$SOURCE_SECTION" ]; then
+			json_add_string "source_section" "$SOURCE_SECTION"
+			for FIELD in ssid network radio; do
+				VALUE=$(uci -q get apcontroller."$WIFI".source_"$FIELD")
+				[ -n "$VALUE" ] || { echo "Incomplete imported interface identity" >&2; exit 13; }
+				json_add_string "expected_$FIELD" "$VALUE"
+			done
+		fi
 		json_add_string "encryption" "$(uci -q get apcontroller."$WIFI".encryption)"
 		json_add_string "key" "$(uci -q get apcontroller."$WIFI".key)"
 		json_add_int "hidden" "$(uci -q get apcontroller."$WIFI".hidden)"
@@ -121,6 +128,16 @@ for HOST in $HOSTS; do
 		[ $? -eq 0 ] && sshpass -p "${password}" scp ${SSHOPTIONS} -P ${port} /usr/share/apcontroller/apcontroller-agent-setconfig ${username}@${ipaddr}:/tmp 2>/dev/null
 		[ $? -eq 0 ] && sshpass -p "${password}" ssh -q ${SSHOPTIONS} -p ${port} ${username}@${ipaddr} "/tmp/apcontroller-agent-setconfig /tmp/cmds-${SEC}" >/dev/null 2>&1
 		T=$?
+	fi
+	# Advance the saved identity only after a successful exact-target update.
+	if [ "$T" -eq 0 ]; then
+		for WIFI in $WIFIS; do
+			if [ "$(uci -q get apcontroller."$WIFI".source_host)" = "$HOST" ]; then
+				uci set apcontroller."$WIFI".source_ssid="$(uci -q get apcontroller."$WIFI".ssid)"
+				uci set apcontroller."$WIFI".source_network="$(uci -q get apcontroller."$WIFI".network)"
+			fi
+		done
+		uci commit apcontroller
 	fi
 	if [ -n "$VERBOSE" ]; then
 		if [ "$T" -eq 0 ]; then
