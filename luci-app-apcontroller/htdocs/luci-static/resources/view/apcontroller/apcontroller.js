@@ -466,13 +466,15 @@ return view.extend({
 				'more': [ _('More') ],
 				'activity': [ _('Activity') ],
 				'ping': [ '%s %s'.format(_('IPv4'), _('Ping')) ],
-				'exec': [ _('Execute') ]
+				'exec': [ _('Execute') ],
+				'config': [ _('Read Wi-Fi / mesh configuration') ]
 			}, {
 				'classes': {
 					'more': 'btn cbi-button cbi-button-normal',
 					'activity': 'btn cbi-button cbi-button-normal',
 					'ping': 'btn cbi-button cbi-button-normal',
-					'exec': 'btn cbi-button cbi-button-normal'
+					'exec': 'btn cbi-button cbi-button-normal',
+					'config': 'btn cbi-button cbi-button-normal'
 				},
 				'click': null,
 				'sort': false
@@ -504,6 +506,9 @@ return view.extend({
 							break;
 						case 'exec':
 							this.actionExec(section_id, ev);
+							break;
+						case 'config':
+							this.actionReadConfig(section_id, ev);
 							break;
 					}
 					setTimeout(() => {
@@ -681,6 +686,135 @@ return view.extend({
 						])
 				);
 				ui.showModal(_("Activity"), child);
+			});
+		};
+
+		s.actionReadConfig = function(section_id) {
+			const hostName = this.map.data.get('apcontroller', section_id, 'name') || section_id;
+			const map = this.map;
+			ui.showModal(_('Read AP configuration'), [
+				E('p', { 'class': 'spinning' }, _('Reading current Wi-Fi and mesh configuration over SSH...'))
+			]);
+
+			return fs.exec('/usr/bin/apcontroller-readconfig', [ section_id ]).then(res => {
+				if (res.code !== 0)
+					throw new Error(res.stderr || _('SSH configuration read failed'));
+
+				let config;
+				try { config = JSON.parse(res.stdout); }
+				catch (e) { throw new Error(_('Invalid configuration received from AP')); }
+
+				if (!Array.isArray(config.interfaces) || !Array.isArray(config.radios))
+					throw new Error(_('Incomplete configuration received from AP'));
+
+				const radios = {};
+				config.radios.forEach(r => { radios[r.section] = r; });
+				const apNetworks = config.interfaces.filter(w => w.mode === 'ap');
+				const meshNetworks = config.interfaces.filter(w => w.mode === 'mesh');
+				const radioDesc = (radio) => {
+					const r = radios[radio] || {};
+					return [ radio, r.band || r.hwmode || '?', _('channel') + ': ' + (r.channel || '?'),
+						r.htmode || '' ].filter(Boolean).join(' / ');
+				};
+				const table = E('table', { 'class': 'table' }, [
+					E('tr', { 'class': 'tr table-titles' }, [
+						E('th', { 'class': 'th' }, _('Type')),
+						E('th', { 'class': 'th' }, _('Section')),
+						E('th', { 'class': 'th' }, _('Network / mesh ID')),
+						E('th', { 'class': 'th' }, _('Radio')),
+						E('th', { 'class': 'th' }, _('Status'))
+					])
+				]);
+
+				config.interfaces.forEach(w => {
+					const label = w.mode === 'mesh' ? w.mesh_id : (w.ssid || w.network || '-');
+					table.appendChild(E('tr', { 'class': 'tr' }, [
+						E('td', { 'class': 'td' }, w.mode === 'mesh' ? '802.11s (protected)' : w.mode.toUpperCase()),
+						E('td', { 'class': 'td' }, w.section || '-'),
+						E('td', { 'class': 'td' }, label || '-'),
+						E('td', { 'class': 'td' }, radioDesc(w.device)),
+						E('td', { 'class': 'td' }, w.disabled === '1' ? _('Disabled') : _('Enabled'))
+					]));
+				});
+
+				const meshInfo = meshNetworks.length ?
+					_('Detected %d protected 802.11s mesh interface(s). They will never be imported as client Wi-Fi.').format(meshNetworks.length) :
+					_('No 802.11s mesh interfaces detected.');
+				const importBtn = E('button', {
+					'class': 'cbi-button cbi-button-primary',
+					'disabled': apNetworks.length === 0,
+					'click': ui.createHandlerFn(this, function() {
+						if (!confirm(_('Import AP client networks into a new controller group for this AP? Existing AP configuration will not be changed. Wi-Fi passwords will be stored in the controller configuration.')))
+							return;
+
+						let added = [];
+						let skipped = 0;
+						const existing = map.data.sections('apcontroller', 'wifi') || [];
+						apNetworks.forEach(w => {
+							if (!w.ssid || !w.device || !w.network || !w.section) {
+								skipped++;
+								return;
+							}
+							if (existing.some(v => v.source_host === section_id && v.source_section === w.section)) {
+								skipped++;
+								return;
+							}
+							const radio = radios[w.device] || {};
+							let band = radio.band;
+							if (!band && radio.hwmode === '11a') band = '5g';
+							if (!band && radio.hwmode === '11g') band = '2g';
+							if (!['2g', '5g', '6g'].includes(band)) {
+								skipped++;
+								return;
+							}
+
+							const sid = nextFreeSid('wifi', map.data.sections('apcontroller', 'wifi').length);
+							map.data.add('apcontroller', 'wifi', sid);
+							const opts = {
+								name: hostName + ' / ' + w.ssid + ' (' + band + ')',
+								ssid: w.ssid, band: [ band ], network: w.network,
+								encryption: w.encryption || 'none', key: w.key || '',
+								hidden: w.hidden || '0', isolate: w.isolate || '0',
+								enabled: w.disabled === '1' ? '0' : '1',
+								macfilter: w.macfilter || 'disable', source_host: section_id,
+								source_section: w.section
+							};
+							Object.entries(opts).forEach(([k, v]) => map.data.set('apcontroller', sid, k, v));
+							if (w.maclist) map.data.set('apcontroller', sid, 'maclist', w.maclist.split(' ').filter(Boolean));
+							added.push(sid);
+						});
+
+						if (!added.length) {
+							ui.addNotification(null, E('p', _('No new supported AP networks to import. Check radio band and existing imports.')), 'warning');
+							return;
+						}
+						const group = nextFreeSid('group', map.data.sections('apcontroller', 'group').length);
+						map.data.add('apcontroller', 'group', group);
+						map.data.set('apcontroller', group, 'name', hostName + ' / imported');
+						map.data.set('apcontroller', group, 'host', [ section_id ]);
+						map.data.set('apcontroller', group, 'wifi', added);
+						map.data.set('apcontroller', group, 'delete', '0');
+						ui.hideModal();
+						return map.save().then(() => window.location.reload()).catch(err =>
+							ui.addNotification(null, E('p', String(err)), 'error'));
+					})
+				}, _('Import client Wi-Fi to controller'));
+
+				ui.showModal(_('Configuration of %s').format(hostName), [
+					E('p', meshInfo),
+					E('p', _('The detected configuration is read-only until you explicitly import it. Mesh secrets are not retrieved.')),
+					table,
+					E('p', _('Importing creates a group assigned only to this AP. Nothing is sent to the AP automatically.')),
+					E('div', { 'class': 'right' }, [
+						importBtn, ' ',
+						E('button', { 'class': 'cbi-button', 'click': ui.hideModal }, _('Close'))
+					])
+				]);
+			}).catch(err => {
+				ui.showModal(_('Read AP configuration'), [
+					E('p', String(err.message || err)),
+					E('button', { 'class': 'cbi-button', 'click': ui.hideModal }, _('Close'))
+				]);
 			});
 		};
 
@@ -977,6 +1111,12 @@ return view.extend({
 					}, 50);
 				}
 			});
+		};
+
+		o = s.taboption('wifi', form.DummyValue, 'source_section', _('Imported UCI section'));
+		o.modalonly = true;
+		o.cfgvalue = function(section_id) {
+			return this.map.data.get('apcontroller', section_id, 'source_section') || '-';
 		};
 
 		o = s.taboption('wifi', form.Value, 'name', _('Name'), _('User-readable description'));
