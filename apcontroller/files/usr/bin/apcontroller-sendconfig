@@ -26,6 +26,18 @@ HOSTS=$(uci -q get apcontroller."$SEC".host)
 WIFIS=$(uci -q get apcontroller."$SEC".wifi)
 [ -z "$WIFIS" ] && exit 0
 
+# An imported interface belongs to exactly one AP. Never replicate it to
+# another host or combine an exact-target import with destructive "Delete all".
+for WIFI in $WIFIS; do
+	SOURCE_HOST=$(uci -q get apcontroller."$WIFI".source_host)
+	if [ -n "$SOURCE_HOST" ]; then
+		if [ "$HOSTS" != "$SOURCE_HOST" ] || [ "$(uci -q get apcontroller."$SEC".delete)" = 1 ]; then
+			echo "Imported Wi-Fi entries may only be sent to their original AP, with Delete all disabled" >&2
+			exit 12
+		fi
+	fi
+done
+
 json_init
 
 DELETE=$(uci -q get apcontroller."$SEC".delete)
@@ -42,6 +54,8 @@ for WIFI in $WIFIS; do
 		json_add_int "enabled" "$(uci -q get apcontroller."$WIFI".enabled)"
 		json_add_string "band" "$BAND"
 		json_add_string "ssid" "$(uci -q get apcontroller."$WIFI".ssid)"
+		SOURCE_SECTION=$(uci -q get apcontroller."$WIFI".source_section)
+		[ -n "$SOURCE_SECTION" ] && json_add_string "source_section" "$SOURCE_SECTION"
 		json_add_string "encryption" "$(uci -q get apcontroller."$WIFI".encryption)"
 		json_add_string "key" "$(uci -q get apcontroller."$WIFI".key)"
 		json_add_int "hidden" "$(uci -q get apcontroller."$WIFI".hidden)"
