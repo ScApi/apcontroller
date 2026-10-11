@@ -52,7 +52,6 @@ function wifi_add() {
 	if [ "$ENABLED" -eq 0 ]; then
 		uci set wireless."$SEC".disabled=1
 	else
-		uci -q del wireless."$RADIO".disabled
 	fi
 	uci set wireless."$SEC".ssid="$SSID"
 	uci set wireless."$SEC".encryption="$ENCRYPTION"
@@ -78,7 +77,6 @@ function wifi_update() {
 	if [ "$ENABLED" -eq 0 ]; then
 		uci set wireless."$SEC".disabled=1
 	else
-		uci -q del wireless."$RADIO".disabled
 		uci -q del wireless."$SEC".disabled
 	fi
 	uci set wireless."$SEC".ssid="$SSID"
@@ -101,9 +99,11 @@ json_get_var delete delete
 if [ "x$delete" = "x1" ]; then
 	EXISTING=$(uci show wireless | awk -F[.=] '/=wifi-iface$/{print $2}')
 	for SECTION in $EXISTING; do
-		uci -q del wireless."$SECTION"
+		# Mesh and STA interfaces are never owned by AP Controller.
+		[ "$(uci -q get wireless."$SECTION".mode)" = "ap" ] || continue
+		uci -q del wireless."$SECTION" || exit 3
+		NEEDCOMMIT=1
 	done
-	NEEDCOMMIT=1
 fi
 
 json_select "wifis"
@@ -165,6 +165,8 @@ while json_is_a $IDX object; do
 		for RADIO in $RADIOS; do
 			FOUND=0
 			for SECTION in $SECTIONS; do
+				# Never turn a mesh/STA interface into a managed AP by SSID collision.
+				[ "$(uci -q get wireless."$SECTION".mode)" = "ap" ] || continue
 				T1=$(uci get wireless."$SECTION".device)
 				if [ "$T1" = "$RADIO" ]; then
 					T2=$(uci get wireless."$SECTION".network)
@@ -187,6 +189,8 @@ while json_is_a $IDX object; do
 done
 
 if [ $NEEDCOMMIT -eq 1 ]; then
+	# Preserve a copy before committing changes; retain existing file permissions.
+	cp -p /etc/config/wireless /etc/config/wireless.apcontroller.bak || exit 4
 	uci commit wireless
 	wifi reload
 fi
