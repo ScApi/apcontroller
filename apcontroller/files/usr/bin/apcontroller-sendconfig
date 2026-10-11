@@ -59,6 +59,17 @@ for WIFI in $WIFIS; do
 done
 json_close_array
 
+# Explicit opt-in for central usteer management; preserve unlisted options.
+if [ "$(uci -q get apcontroller."$SEC".usteer_apply)" = "1" ]; then
+	json_add_object "usteer"
+	json_add_int "apply" 1
+	for OPTION in signal_diff min_snr roam_scan_snr roam_trigger_snr band_steering_interval load_balancing_interval; do
+		VALUE=$(uci -q get apcontroller."$SEC".usteer_"$OPTION")
+		[ -n "$VALUE" ] && json_add_string "$OPTION" "$VALUE"
+	done
+	json_close_object
+fi
+
 json_dump > ${BASEPATH}/cmds-${SEC}
 
 USEAS=$(uci -q get apcontroller."$SEC".useadditionalscript)
