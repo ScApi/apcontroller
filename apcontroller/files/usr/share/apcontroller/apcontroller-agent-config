@@ -43,4 +43,17 @@ for SECTION in $(uci -q show wireless | awk -F[.=] '/=wifi-iface$/{print $2}'); 
 	json_close_object
 done
 json_close_array
+
+# Read current usteer steering parameters without modifying the service.
+if [ -f /etc/config/usteer ]; then
+	json_add_object usteer
+	for OPT in signal_diff min_snr roam_scan_snr roam_trigger_snr band_steering_interval load_balancing_interval; do
+		VALUE=$(uci -q get usteer.@usteer[0]."$OPT")
+		case "$VALUE" in
+			''|*[!0-9-]*) ;;
+			*) json_add_string "$OPT" "$VALUE" ;;
+		esac
+	done
+	json_close_object
+fi
 json_dump
