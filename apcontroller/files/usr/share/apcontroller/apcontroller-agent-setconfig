@@ -108,7 +108,7 @@ json_select "wifis"
 IDX=1
 while json_is_a $IDX object; do
 	json_select $IDX
-	json_get_vars enabled band network ssid encryption key hidden isolate macfilter source_section
+	json_get_vars enabled band network ssid encryption key hidden isolate macfilter source_section expected_ssid expected_network expected_radio
 
 	[ -z "$macfilter" ] && macfilter="disable"
 
@@ -159,6 +159,11 @@ while json_is_a $IDX object; do
 		[ "$(uci -q get wireless."$source_section")" = "wifi-iface" ] || exit 15
 		[ "$(uci -q get wireless."$source_section".mode)" = ap ] || exit 15
 		TARGET_RADIO=$(uci -q get wireless."$source_section".device)
+		# Fail closed if the section index changed or an AP has drifted.
+		[ -n "$expected_ssid" ] && [ -n "$expected_network" ] && [ -n "$expected_radio" ] || exit 15
+		[ "$TARGET_RADIO" = "$expected_radio" ] || exit 15
+		[ "$(uci -q get wireless."$source_section".ssid)" = "$expected_ssid" ] || exit 15
+		[ "$(uci -q get wireless."$source_section".network)" = "$expected_network" ] || exit 15
 		case " $RADIOS " in *" $TARGET_RADIO "*) ;; *) exit 15 ;; esac
 		wifi_update "$source_section" "$TARGET_RADIO" "$enabled" "$ssid" "$encryption" "$key" "$hidden" "$isolate" "$macfilter" "$MACLIST"
 		uci set wireless."$source_section".network="$network" || exit 15
