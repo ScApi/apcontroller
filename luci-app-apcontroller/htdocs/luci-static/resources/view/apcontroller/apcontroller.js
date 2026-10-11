@@ -1172,6 +1172,27 @@ return view.extend({
 		o.rmempty = false;
 		o.default = '0';
 
+		// Central usteer configuration is opt-in and does not touch 802.11s.
+		o = s.taboption('group', form.Flag, 'usteer_apply', _('Manage usteer'), _('Send the selected roaming parameters to APs in this group. Requires usteer installed on every selected AP.'));
+		o.modalonly = true;
+		o.rmempty = false;
+		o.default = '0';
+
+		[
+			['signal_diff', _('Signal difference')],
+			['min_snr', _('Minimum SNR')],
+			['roam_scan_snr', _('Roaming scan SNR')],
+			['roam_trigger_snr', _('Roaming trigger SNR')],
+			['band_steering_interval', _('Band steering interval')],
+			['load_balancing_interval', _('Load balancing interval')]
+		].forEach(([key, title]) => {
+			const field = s.taboption('group', form.Value, 'usteer_' + key, title, _('Leave empty to preserve the device setting.'));
+			field.modalonly = true;
+			field.rmempty = true;
+			field.datatype = 'integer';
+			field.depends('usteer_apply', '1');
+		});
+
 		o = s.taboption('group', form.Flag, 'useadditionalscript', _('Use additional script'), _('Use additional script before setting up a Wi-Fi'));
 		o.modalonly = true;
 		o.rmempty = false;
