@@ -108,7 +108,7 @@ json_select "wifis"
 IDX=1
 while json_is_a $IDX object; do
 	json_select $IDX
-	json_get_vars enabled band network ssid encryption key hidden isolate macfilter
+	json_get_vars enabled band network ssid encryption key hidden isolate macfilter source_section
 
 	[ -z "$macfilter" ] && macfilter="disable"
 
@@ -148,6 +148,21 @@ while json_is_a $IDX object; do
 			;;
 	esac
 	if [ -z "$RADIOS" ]; then
+		IDX=$((IDX + 1))
+		json_select ..
+		continue
+	fi
+
+	# Imported AP configuration must update exactly its original wifi-iface.
+	# Never create a replacement when the original interface has disappeared.
+	if [ -n "$source_section" ]; then
+		[ "$(uci -q get wireless."$source_section")" = "wifi-iface" ] || exit 15
+		[ "$(uci -q get wireless."$source_section".mode)" = ap ] || exit 15
+		TARGET_RADIO=$(uci -q get wireless."$source_section".device)
+		case " $RADIOS " in *" $TARGET_RADIO "*) ;; *) exit 15 ;; esac
+		wifi_update "$source_section" "$TARGET_RADIO" "$enabled" "$ssid" "$encryption" "$key" "$hidden" "$isolate" "$macfilter" "$MACLIST"
+		uci set wireless."$source_section".network="$network" || exit 15
+		NEEDCOMMIT=1
 		IDX=$((IDX + 1))
 		json_select ..
 		continue
