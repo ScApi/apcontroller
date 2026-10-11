@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - fix/mesh-safe-wireless
+      - feature/ap-config-discovery
     paths:
       - 'apcontroller/**'
       - 'luci-app-apcontroller/**'
@@ -25,6 +26,9 @@ jobs:
       - name: Check shell syntax
         run: |
           sh -n apcontroller/files/usr/share/apcontroller/apcontroller-agent
+          sh -n apcontroller/files/usr/share/apcontroller/apcontroller-agent-config
+          sh -n apcontroller/files/usr/bin/apcontroller-readconfig
+          node --check luci-app-apcontroller/htdocs/luci-static/resources/view/apcontroller/apcontroller.js
           sh -n apcontroller/files/usr/share/apcontroller/apcontroller-agent-setconfig
           sh -n apcontroller/files/usr/bin/apcontroller-sendconfig
 
