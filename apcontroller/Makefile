@@ -30,6 +30,7 @@ define Package/apcontroller/postinst
 #!/bin/sh
 if [ -z "$${IPKG_INSTROOT}" ]; then
 	[ -e /etc/uci-defaults/apcontroller ] && /etc/uci-defaults/apcontroller
+	chmod 600 /etc/config/apcontroller 2>/dev/null || true
 	/etc/init.d/rpcd restart
 	/etc/init.d/cron restart
 	/usr/bin/apcontroller
