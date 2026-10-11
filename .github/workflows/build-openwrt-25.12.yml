@@ -1,0 +1,46 @@
+name: Build AP Controller (OpenWrt 25.12)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/mesh-safe-wireless
+    paths:
+      - 'apcontroller/**'
+      - 'luci-app-apcontroller/**'
+      - '.github/workflows/build-openwrt-25.12.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  packages:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check shell syntax
+        run: |
+          sh -n apcontroller/files/usr/share/apcontroller/apcontroller-agent
+          sh -n apcontroller/files/usr/share/apcontroller/apcontroller-agent-setconfig
+          sh -n apcontroller/files/usr/bin/apcontroller-sendconfig
+
+      - name: Build packages with official OpenWrt SDK
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: aarch64_cortex-a53-25.12.0
+          PACKAGES: apcontroller luci-app-apcontroller
+          BUILD_LOG: 1
+
+      - name: Store APK packages and build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apcontroller-openwrt-25.12-aarch64-cortex-a53
+          path: |
+            bin/packages/**/*.apk
+            logs/**
+          if-no-files-found: warn
