@@ -156,7 +156,9 @@ return view.extend({
 			'clients6g': _('6 GHz Clients'),
 			'channels2g': _('2.4 GHz Channel(s)'),
 			'channels5g': _('5 GHz Channel(s)'),
-			'channels6g': _('6 GHz Channel(s)')
+			'channels6g': _('6 GHz Channel(s)'),
+			'mesh_summary': _('802.11s mesh peers'),
+			'usteer_summary': _('usteer roaming')
 		};
 
 		const clientscolumns = {
@@ -189,6 +191,9 @@ return view.extend({
 				if (row['channels6g'])
 					row['channels6g'] = row['channels6g'].replaceAll(' ', ', ')
 
+				const peers = Array.isArray(row.meshpeers) ? row.meshpeers : [];
+				row.mesh_summary = peers.length ? peers.map(p => p.mac + ' (' + p.signal + ' dBm)').join(', ') : (row.meshpeers ? '0 peers' : '-');
+				row.usteer_summary = row.usteer_installed ? (row.usteer_enabled ? 'Enabled' : 'Disabled') : 'Not installed';
 				row['.lastcontact'] = row['lastcontact'];
 				if (row['.lastcontact'] > -1) {
 					const d = new Date(new Date().getTime() - row['.lastcontact'] * 1000);
