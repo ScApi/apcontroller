@@ -154,13 +154,16 @@ show_activity() {
 	enabled=$(uci_get "apcontroller" "$section" "enabled" "0")
 	json_add_array "activity"
 	if [ -n "$ipaddr" ] && [ -s "${BASEPATH}/${ipaddr}.txt" ] && [ "$enabled" = "1" ]; then
+		ACTIVITY_TMP=$(mktemp /tmp/apcontroller-activity.XXXXXX) || return 1
+		tail -n 672 "${BASEPATH}/${ipaddr}.txt" > "$ACTIVITY_TMP"
 		while read -r LINE; do
 			set -- $LINE
 			json_add_object
 			json_add_int "timestamp" $1
 			json_add_int "value" $2
 			json_close_object
-		done < <(tail -n 672 "${BASEPATH}/${ipaddr}.txt")
+		done < "$ACTIVITY_TMP"
+		rm -f "$ACTIVITY_TMP"
 	fi
 	json_close_array
 	json_dump
