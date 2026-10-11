@@ -31,6 +31,9 @@ jobs:
           node --check luci-app-apcontroller/htdocs/luci-static/resources/view/apcontroller/apcontroller.js
           sh -n apcontroller/files/usr/share/apcontroller/apcontroller-agent-setconfig
           sh -n apcontroller/files/usr/bin/apcontroller-sendconfig
+          sh -n apcontroller/files/usr/bin/apcontroller
+          sh -n apcontroller/files/usr/libexec/rpcd/apcontroller
+          sh -n apcontroller/files/etc/uci-defaults/apcontroller
 
       - name: Build packages with official OpenWrt SDK
         uses: openwrt/gh-action-sdk@main
