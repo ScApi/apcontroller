@@ -50,6 +50,7 @@ endef
 define Package/apcontroller/install
 	$(INSTALL_DIR) $(1)
 	$(CP) ./files/* $(1)
+	$(INSTALL_BIN) ./files/usr/bin/apcontroller-readconfig $(1)/usr/bin/apcontroller-readconfig
 endef
 
 $(eval $(call BuildPackage,apcontroller))
