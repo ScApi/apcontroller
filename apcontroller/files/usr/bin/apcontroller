@@ -47,6 +47,25 @@ get_data_from_host() {
 	grep -q "$NOW $VAL" "${BASEPATH}/${ipaddr}.txt" || echo "$NOW $VAL" >> "${BASEPATH}/${ipaddr}.txt"
 }
 
+# Resolve the bundled "OpenWrt" host to the controller's actual LAN IP.
+# Migrate only the stock placeholder; never change user-defined AP addresses.
+STOCK_IP=$(uci -q get apcontroller.host1.ipaddr)
+STOCK_NAME=$(uci -q get apcontroller.host1.name)
+AUTO_IP=$(uci -q get apcontroller.host1.local_address)
+if [ "$AUTO_IP" = 1 ] || {
+	[ "$STOCK_NAME" = OpenWrt ] &&
+	{ [ "$STOCK_IP" = 192.168.0.1 ] || [ "$STOCK_IP" = 192.168.1.1 ]; }
+}; then
+	ACTUAL_IP=$(ubus call network.interface.lan status 2>/dev/null |
+		jsonfilter -q -e '@["ipv4-address"][0].address')
+	[ -n "$ACTUAL_IP" ] || ACTUAL_IP=$(uci -q get network.lan.ipaddr | cut -d/ -f1)
+	if [ -n "$ACTUAL_IP" ] && [ "$ACTUAL_IP" != "$STOCK_IP" ]; then
+		uci set apcontroller.host1.ipaddr="$ACTUAL_IP"
+		uci set apcontroller.host1.local_address=1
+		uci commit apcontroller
+	fi
+fi
+
 T=$(uci -q get apcontroller.@global[0].path)
 [ -n "$T" ] && BASEPATH="$T"
 mkdir -p "$BASEPATH"
