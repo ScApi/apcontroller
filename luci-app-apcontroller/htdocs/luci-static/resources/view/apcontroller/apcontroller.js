@@ -794,6 +794,13 @@ return view.extend({
 						map.data.set('apcontroller', group, 'host', [ section_id ]);
 						map.data.set('apcontroller', group, 'wifi', added);
 						map.data.set('apcontroller', group, 'delete', '0');
+						if (config.usteer) {
+							Object.entries(config.usteer).forEach(([key, value]) => {
+								if (/^(signal_diff|min_snr|roam_scan_snr|roam_trigger_snr|band_steering_interval|load_balancing_interval)$/.test(key))
+									map.data.set('apcontroller', group, 'usteer_' + key, String(value));
+							});
+							map.data.set('apcontroller', group, 'usteer_apply', '0');
+						}
 						ui.hideModal();
 						return map.save().then(() => window.location.reload()).catch(err =>
 							ui.addNotification(null, E('p', String(err)), 'error'));
@@ -802,6 +809,7 @@ return view.extend({
 
 				ui.showModal(_('Configuration of %s').format(hostName), [
 					E('p', meshInfo),
+					E('p', config.usteer ? 'usteer: ' + Object.entries(config.usteer).map(([k, v]) => k + '=' + v).join(', ') : _('usteer: not installed or not detected')),
 					E('p', _('The detected configuration is read-only until you explicitly import it. Mesh secrets are not retrieved.')),
 					table,
 					E('p', _('Importing creates a group assigned only to this AP. Nothing is sent to the AP automatically.')),
