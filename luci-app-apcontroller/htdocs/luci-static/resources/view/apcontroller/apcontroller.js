@@ -751,7 +751,7 @@ return view.extend({
 						let skipped = 0;
 						const existing = map.data.sections('apcontroller', 'wifi') || [];
 						apNetworks.forEach(w => {
-							if (!w.ssid || !w.device || !w.network || !w.section) {
+							if (!w.ssid || !w.device || !w.network || !/^[a-zA-Z0-9_]+$/.test(w.network) || !w.section) {
 								skipped++;
 								return;
 							}
@@ -777,7 +777,8 @@ return view.extend({
 								hidden: w.hidden || '0', isolate: w.isolate || '0',
 								enabled: w.disabled === '1' ? '0' : '1',
 								macfilter: w.macfilter || 'disable', source_host: section_id,
-								source_section: w.section
+								source_section: w.section, source_ssid: w.ssid,
+								source_network: w.network, source_radio: w.device
 							};
 							Object.entries(opts).forEach(([k, v]) => map.data.set('apcontroller', sid, k, v));
 							if (w.maclist) map.data.set('apcontroller', sid, 'maclist', w.maclist.split(' ').filter(Boolean));
