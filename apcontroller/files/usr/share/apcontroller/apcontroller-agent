@@ -88,6 +88,59 @@ if [ -e /etc/config/wireless ]; then
 	done
 fi
 
+
+# 802.11s monitoring: report only peers from configured mesh interfaces.
+# No wireless configuration is changed during polling.
+json_add_array "meshpeers"
+MESHSECTIONS=$(uci -q show wireless | awk -F[.=] '/=wifi-iface$/{print $2}')
+for SEC in $MESHSECTIONS; do
+	[ "$(uci -q get wireless."$SEC".mode)" = "mesh" ] || continue
+	MESHID=$(uci -q get wireless."$SEC".mesh_id)
+	RADIO=$(uci -q get wireless."$SEC".device)
+	# ubus exposes the runtime ifname of each wifi-iface section.
+	IFNAME=$(jsonfilter -s "$(ubus call network.wireless status 2>/dev/null)" -q -e '@.*.interfaces[@.section="'"$SEC"'"].ifname' | head -n 1)
+	[ -n "$IFNAME" ] || continue
+	iw dev "$IFNAME" station dump 2>/dev/null | awk '
+		/^Station / { mac=$2; signal=""; tx=""; rx=""; }
+		/^[[:space:]]*signal:/ {signal=$2}
+		/^[[:space:]]*tx bitrate:/ {tx=$3}
+		/^[[:space:]]*rx bitrate:/ {rx=$3}
+		/^[[:space:]]*connected time:/ {
+			if (mac ~ /^[0-9a-fA-F:]+$/) print mac,signal,tx,rx,$3
+		}' | while read -r PEER SIGNAL TXRATE RXRATE CONNECTED; do
+		json_add_object
+		json_add_string "interface" "$IFNAME"
+		json_add_string "mesh_id" "$MESHID"
+		json_add_string "radio" "$RADIO"
+		json_add_string "mac" "$PEER"
+		json_add_string "signal" "$SIGNAL"
+		json_add_string "txrate" "$TXRATE"
+		json_add_string "rxrate" "$RXRATE"
+		json_add_string "connected" "$CONNECTED"
+		json_close_object
+	done
+done
+json_close_array
+
+# Read-only usteer discovery. Never expose secrets from its UCI file.
+if [ -f /etc/config/usteer ]; then
+	json_add_boolean "usteer_installed" 1
+	if /etc/init.d/usteer enabled >/dev/null 2>&1; then
+		json_add_boolean "usteer_enabled" 1
+	else
+		json_add_boolean "usteer_enabled" 0
+	fi
+	for OPTION in signal_diff min_snr roam_scan_snr roam_trigger_snr band_steering_interval load_balancing_interval; do
+		VALUE=$(uci -q get usteer.@usteer[0]."$OPTION")
+		case "$VALUE" in
+			''|*[!0-9-]*) ;;
+			*) json_add_string "usteer_$OPTION" "$VALUE" ;;
+		esac
+	done
+else
+	json_add_boolean "usteer_installed" 0
+fi
+
 json_dump
 
 exit 0
