@@ -73,7 +73,6 @@ function wifi_update() {
 	local MACFILTER=$9
 	local MACLIST="${10}"
 
-	uci -q del wireless."$RADIO".disabled
 	if [ "$ENABLED" -eq 0 ]; then
 		uci set wireless."$SEC".disabled=1
 	else
