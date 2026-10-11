@@ -107,7 +107,8 @@ for SEC in $MESHSECTIONS; do
 		/^[[:space:]]*rx bitrate:/ {rx=$3}
 		/^[[:space:]]*connected time:/ {
 			if (mac ~ /^[0-9a-fA-F:]+$/) print mac,signal,tx,rx,$3
-		}' | while read -r PEER SIGNAL TXRATE RXRATE CONNECTED; do
+		}' > /tmp/apcontroller-meshpeers.$
+	while read -r PEER SIGNAL TXRATE RXRATE CONNECTED; do
 		json_add_object
 		json_add_string "interface" "$IFNAME"
 		json_add_string "mesh_id" "$MESHID"
@@ -118,7 +119,8 @@ for SEC in $MESHSECTIONS; do
 		json_add_string "rxrate" "$RXRATE"
 		json_add_string "connected" "$CONNECTED"
 		json_close_object
-	done
+	done < /tmp/apcontroller-meshpeers.$
+	rm -f /tmp/apcontroller-meshpeers.$
 done
 json_close_array
 
