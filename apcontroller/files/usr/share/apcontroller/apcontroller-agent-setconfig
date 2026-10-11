@@ -5,7 +5,7 @@ FILE=$1
 
 [ -e /etc/config/wireless ] || exit 1
 
-function wifi_set_macfilter() {
+wifi_set_macfilter() {
 	local SEC="$1"
 	local MACFILTER="$2"
 	local MACLIST="$3"
@@ -27,7 +27,7 @@ function wifi_set_macfilter() {
 	esac
 }
 
-function wifi_add() {
+wifi_add() {
 	local RADIO=$1
 	local NETWORK=$2
 	local ENABLED=$3
@@ -60,7 +60,7 @@ function wifi_add() {
 	wifi_set_macfilter "$SEC" "$MACFILTER" "$MACLIST"
 }
 
-function wifi_update() {
+wifi_update() {
 	local SEC=$1
 	local RADIO=$2
 	local ENABLED=$3
