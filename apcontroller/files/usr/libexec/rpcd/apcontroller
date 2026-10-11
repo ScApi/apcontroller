@@ -91,6 +91,38 @@ show_data_from_host() {
 			fi
 		done
 
+		# Forward structured mesh peers to the LuCI status API.
+		if json_is_a meshpeers array; then
+			json_set_namespace "$oldns"
+			json_add_array "meshpeers"
+			json_set_namespace host oldns
+			json_select meshpeers
+			mesh_idx=1
+			while json_is_a "$mesh_idx" object; do
+				json_select "$mesh_idx"
+				json_get_vars interface mesh_id radio mac signal txrate rxrate connected
+				json_set_namespace "$oldns"
+				json_add_object
+				json_add_string "interface" "$interface"
+				json_add_string "mesh_id" "$mesh_id"
+				json_add_string "radio" "$radio"
+				json_add_string "mac" "$mac"
+				json_add_string "signal" "$signal"
+				json_add_string "txrate" "$txrate"
+				json_add_string "rxrate" "$rxrate"
+				json_add_string "connected" "$connected"
+				json_close_object
+				json_set_namespace host oldns
+				json_select ..
+				mesh_idx=$((mesh_idx + 1))
+			done
+			json_set_namespace "$oldns"
+			json_close_array
+			json_set_namespace host oldns
+			json_select ..
+		fi
+		json_get_vars usteer_installed usteer_enabled
+
 		json_cleanup
 		json_set_namespace $oldns
 
@@ -103,6 +135,8 @@ show_data_from_host() {
 		[ -n "$channels2g" ] && json_add_string "channels2g" "$channels2g"
 		[ -n "$channels5g" ] && json_add_string "channels5g" "$channels5g"
 		[ -n "$channels6g" ] && json_add_string "channels6g" "$channels6g"
+		json_add_boolean "usteer_installed" "${usteer_installed:-0}"
+		json_add_boolean "usteer_enabled" "${usteer_enabled:-0}"
 	fi
 	json_add_int "lastcontact" "$LASTCONTACT"
 
