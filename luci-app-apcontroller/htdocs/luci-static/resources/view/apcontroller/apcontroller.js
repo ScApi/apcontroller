@@ -1263,6 +1263,8 @@ return view.extend({
 		};
 
 		s.handleSendConfig = function (section_id, ev) {
+			if (!confirm(_('Sending configuration can briefly disconnect mesh links when Wi-Fi is reloaded. Continue only if remote recovery is possible.')))
+				return Promise.resolve();
 			return this.map.save().then(() => {
 				ui.showModal(_('Sending commands'), [
 					E('p', { 'class': 'spinning' }, [ _('Sending commands to devices...') ])
