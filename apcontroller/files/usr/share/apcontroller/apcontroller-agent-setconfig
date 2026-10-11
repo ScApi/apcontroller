@@ -51,7 +51,6 @@ function wifi_add() {
 	uci set wireless."$SEC".network="$NETWORK"
 	if [ "$ENABLED" -eq 0 ]; then
 		uci set wireless."$SEC".disabled=1
-	else
 	fi
 	uci set wireless."$SEC".ssid="$SSID"
 	uci set wireless."$SEC".encryption="$ENCRYPTION"
@@ -186,6 +185,48 @@ while json_is_a $IDX object; do
 	IDX=$((IDX + 1))
 	json_select ..
 done
+
+
+# usteer is independent of mesh backhaul; apply only explicit numeric keys.
+# Missing usteer package/config is a hard failure when management was requested.
+json_select ..
+if json_is_a usteer object; then
+	[ -f /etc/config/usteer ] || exit 8
+	json_select usteer
+	json_get_var APPLY apply
+	if [ "$APPLY" = "1" ]; then
+		USTEERCHANGE=0
+		for OPTION in signal_diff min_snr roam_scan_snr roam_trigger_snr band_steering_interval load_balancing_interval; do
+			json_get_var VALUE "$OPTION"
+			[ -n "$VALUE" ] || continue
+			case "$VALUE" in
+				-*[!0-9]*|*[!0-9-]*|--*|*--*) exit 9 ;;
+			esac
+			# Reject arbitrary values; steering-related SNR values may be negative.
+			echo "$VALUE" | grep -Eq '^-?[0-9]{1,5}
+	# Preserve a copy before committing changes; retain existing file permissions.
+	cp -p /etc/config/wireless /etc/config/wireless.apcontroller.bak || exit 4
+	uci commit wireless
+	wifi reload
+fi
+
+rm "$FILE"
+[ -e /tmp/apcontroller.user ] && rm /tmp/apcontroller.user
+[ -e /tmp/apcontroller-agent-as ] && rm /tmp/apcontroller-agent-as
+
+exit 0
+ || exit 9
+			uci set usteer.@usteer[0]."$OPTION"="$VALUE" || exit 9
+			USTEERCHANGE=1
+		done
+		if [ "$USTEERCHANGE" = "1" ]; then
+			cp -p /etc/config/usteer /etc/config/usteer.apcontroller.bak || exit 10
+			uci commit usteer || exit 10
+			/etc/init.d/usteer reload >/dev/null 2>&1 || /etc/init.d/usteer restart >/dev/null 2>&1 || exit 11
+		fi
+	fi
+	json_select ..
+fi
 
 if [ $NEEDCOMMIT -eq 1 ]; then
 	# Preserve a copy before committing changes; retain existing file permissions.
