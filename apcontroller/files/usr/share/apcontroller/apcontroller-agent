@@ -42,6 +42,9 @@ if [ -e /etc/config/wireless ]; then
 		if [ -n "${IFNAMES}" ]; then
 			json_add_array "clientslist${BAND}"
 			for IFNAME in $IFNAMES; do
+				# Exclude 802.11s peers from the regular Wi-Fi client list.
+				TYPE=$(iw dev "$IFNAME" info 2>/dev/null | awk '/^[[:space:]]*type /{print $2; exit}')
+				[ "$TYPE" = "AP" ] || continue
 				SSID=$(jsonfilter -s "$WIRELESSSTATUS" -q -e '@.*.interfaces[@.ifname="'${IFNAME}'"].config.ssid')
 				if [ -z "$SSID" ]; then
 					T=$(jsonfilter -s "$WIRELESSSTATUS" -q -e '@.*.interfaces[@.ifname="'${IFNAME}'"].config.mesh_id')
