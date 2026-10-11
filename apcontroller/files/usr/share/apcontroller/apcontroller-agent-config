@@ -1,0 +1,46 @@
+#!/bin/sh
+# Read-only inventory of radios, AP interfaces and protected 802.11s mesh.
+# AP passwords are returned ONLY on an explicitly requested configuration read.
+# Mesh keys are deliberately never exported.
+. /usr/share/libubox/jshn.sh
+
+[ -r /etc/config/wireless ] || exit 1
+json_init
+json_add_array radios
+for SECTION in $(uci -q show wireless | awk -F[.=] '/=wifi-device$/{print $2}'); do
+	json_add_object
+	json_add_string section "$SECTION"
+	for OPT in band hwmode channel htmode country disabled; do
+		VALUE=$(uci -q get wireless."$SECTION"."$OPT")
+		[ -n "$VALUE" ] && json_add_string "$OPT" "$VALUE"
+	done
+	json_close_object
+done
+json_close_array
+
+json_add_array interfaces
+for SECTION in $(uci -q show wireless | awk -F[.=] '/=wifi-iface$/{print $2}'); do
+	MODE=$(uci -q get wireless."$SECTION".mode)
+	case "$MODE" in ap|mesh|sta) ;; *) continue ;; esac
+	json_add_object
+	json_add_string section "$SECTION"
+	json_add_string mode "$MODE"
+	for OPT in device network disabled encryption; do
+		VALUE=$(uci -q get wireless."$SECTION"."$OPT")
+		[ -n "$VALUE" ] && json_add_string "$OPT" "$VALUE"
+	done
+	if [ "$MODE" = mesh ]; then
+		for OPT in mesh_id mesh_fwding mesh_rssi_threshold; do
+			VALUE=$(uci -q get wireless."$SECTION"."$OPT")
+			[ -n "$VALUE" ] && json_add_string "$OPT" "$VALUE"
+		done
+	elif [ "$MODE" = ap ]; then
+		for OPT in ssid key hidden isolate macfilter maclist ieee80211r ieee80211k ieee80211v mobility_domain; do
+			VALUE=$(uci -q get wireless."$SECTION"."$OPT")
+			[ -n "$VALUE" ] && json_add_string "$OPT" "$VALUE"
+		done
+	fi
+	json_close_object
+done
+json_close_array
+json_dump
